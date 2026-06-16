@@ -1,0 +1,45 @@
+name: Validate JavaScript
+
+on:
+  workflow_call:
+    inputs:
+      html_file:
+        description: 'HTML file to validate'
+        required: false
+        default: 'index.html'
+        type: string
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install acorn
+        run: npm install -g acorn
+
+      - name: Validate JavaScript
+        run: |
+          node -e "
+          const fs = require('fs');
+          const html = fs.readFileSync('${{ inputs.html_file }}', 'utf8');
+          const matches = html.match(/<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/gi) || [];
+          const acorn = require('acorn');
+          let hasError = false;
+          matches.forEach((block, i) => {
+            const js = block.replace(/<\/?script[^>]*>/gi, '');
+            try {
+              acorn.parse(js, { ecmaVersion: 2022 });
+              console.log('Block ' + (i+1) + ': OK');
+            } catch(e) {
+              console.error('Block ' + (i+1) + ' ERROR: ' + e.message);
+              hasError = true;
+            }
+          });
+          if (hasError) process.exit(1);
+          "
